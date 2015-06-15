@@ -1,12 +1,13 @@
 # Find known operating systems for associations
 os_junos = Operatingsystem.find_all_by_type "Junos" || Operatingsystem.where("name LIKE ?", "junos")
+os_nxos = Operatingsystem.find_all_by_type "NXOS"
 os_solaris = Operatingsystem.find_all_by_type "Solaris"
 os_suse = Operatingsystem.find_all_by_type "Suse" || Operatingsystem.where("name LIKE ?", "suse")
 os_windows = Operatingsystem.find_all_by_type "Windows"
 
 # Template kinds
 kinds = {}
-[:PXELinux, :PXEGrub, :iPXE, :provision, :finish, :script, :user_data, :ZTP].each do |type|
+[:PXELinux, :PXEGrub, :iPXE, :provision, :finish, :script, :user_data, :ZTP, :POAP].each do |type|
   kinds[type] = TemplateKind.find_by_name(type)
   kinds[type] ||= TemplateKind.create :name => type
   raise "Unable to create template kind: #{format_errors kinds[type]}" if kinds[type].nil? || kinds[type].errors.any?
@@ -52,6 +53,8 @@ ConfigTemplate.without_auditing do
     { :name => "Junos default SLAX", :source => 'ztp/provision.erb', :template_kind => kinds[:provision], :operatingsystems => os_junos },
     { :name => "Junos default ZTP config", :source => 'ztp/ZTP.erb', :template_kind => kinds[:ZTP], :operatingsystems => os_junos },
     { :name => "Junos default finish", :source => 'ztp/finish.erb', :template_kind => kinds[:finish], :operatingsystems => os_junos },
+    { :name => "Junos default ZTP config", :source => 'ztp/ZTP.erb', :template_kind => kinds[:ZTP], :operatingsystems => os_junos },
+    { :name => "NX-OS default POAP setup", :source => 'poap/POAP.erb', :template_kind => kinds[:POAP], :operatingsystems => os_nxos },
     # snippets
     { :name => 'alterator_pkglist', :source => 'snippets/_alterator_pkglist.erb', :snippet => true },
     { :name => 'coreos_cloudconfig', :source => 'snippets/_coreos_cloudconfig.erb', :snippet => true },
