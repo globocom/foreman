@@ -26,7 +26,7 @@ class NXOS < Operatingsystem
   end
 
   def url_for_boot(file)
-    pxedir + "/" + PXEFILES[file]
+    raise ::Foreman::Exception.new(N_("Function not available for %s"), self.display_family)
   end
 
   # where to create the boot file on the TFTP server
@@ -35,11 +35,11 @@ class NXOS < Operatingsystem
   end
 
   def kernel(arch)
-    "none"
+    raise ::Foreman::Exception.new(N_("Invalid file for %s"), self.display_family)
   end
 
   def initrd(arch)
-    "none"
+    raise ::Foreman::Exception.new(N_("Invalid file for %s"), self.display_family)
   end
 
   # release_name can be used to complete Cisco release numbers.
