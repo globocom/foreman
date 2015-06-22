@@ -35,11 +35,11 @@ class NXOS < Operatingsystem
   end
 
   def kernel(arch)
-    raise ::Foreman::Exception.new(N_("Invalid file for %s"), self.display_family)
+    "none"
   end
 
   def initrd(arch)
-    raise ::Foreman::Exception.new(N_("Invalid file for %s"), self.display_family)
+    "none"
   end
 
   # release_name can be used to complete Cisco release numbers.
