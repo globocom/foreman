@@ -1103,6 +1103,22 @@ class HostTest < ActiveSupport::TestCase
       assert_equal 'eth5', virtual.attached_to
     end
 
+    test "#set_interfaces does not update unassociated virtuals identifier on identifier change if original identifier was blank" do
+      # interface with empty identifier was renamed to eth5 (same MAC)
+      host = FactoryGirl.create(:host, :hostgroup => FactoryGirl.create(:hostgroup), :mac => '00:00:00:11:22:33')
+      host.primary_interface.update_attribute :identifier, ''
+      hash = { :bond0 => {:macaddress => '00:00:00:44:55:66', :ipaddress => '10.10.0.2', :virtual => true},
+               :eth5 => {:macaddress => '00:00:00:11:22:33', :ipaddress => '10.10.0.1', :virtual => false, :identifier => 'eth5'},
+      }.with_indifferent_access
+      parser = stub(:interfaces => hash, :ipmi_interface => {}, :suggested_primary_interface => hash.to_a.first)
+      bond0 = FactoryGirl.create(:nic_bond, :host => host, :mac => '00:00:00:44:55:66', :ip => '10.10.0.2', :identifier => 'bond0', :attached_to => '')
+
+      host.set_interfaces(parser)
+      bond0.reload
+      assert_equal 'bond0', bond0.identifier
+      assert_equal '', bond0.attached_to
+    end
+
     test "set_interfaces updates associated virtuals identifier even on primary interface" do
       host, parser = setup_host_with_nic_parser({:macaddress => '00:00:00:11:22:33', :ipaddress => '10.10.0.1', :virtual => false, :identifier => 'eth1'})
       host.primary_interface.update_attribute :identifier, 'eth0'
@@ -1113,6 +1129,23 @@ class HostTest < ActiveSupport::TestCase
       virtual.reload
       assert_equal 'eth1.1', virtual.identifier
       assert_equal 'eth1', virtual.attached_to
+    end
+
+    test "#set_interfaces matches bonds based on identifier and even updates its mac" do
+      # interface with empty identifier was renamed to eth5 (same MAC)
+      host = FactoryGirl.create(:host, :hostgroup => FactoryGirl.create(:hostgroup), :mac => '00:00:00:11:22:33')
+      hash = { :bond0 => {:macaddress => 'aa:bb:cc:44:55:66', :ipaddress => '10.10.0.3', :virtual => true},
+               :eth5 => {:macaddress => '00:00:00:11:22:33', :ipaddress => '10.10.0.1', :virtual => false, :identifier => 'eth5'},
+      }.with_indifferent_access
+      parser = stub(:interfaces => hash, :ipmi_interface => {}, :suggested_primary_interface => hash.to_a.first)
+      bond0 = FactoryGirl.create(:nic_bond, :host => host, :mac => '00:00:00:44:55:66', :ip => '10.10.0.2', :identifier => 'bond0')
+
+      host.set_interfaces(parser)
+      host.interfaces.reload
+      assert_equal 1, host.interfaces.bonds.size
+      bond0.reload
+      assert_equal 'aa:bb:cc:44:55:66', bond0.mac
+      assert_equal '10.10.0.3', bond0.ip
     end
 
     test "#set_interfaces updates associated virtuals identifier on identifier change mutualy exclusively" do
@@ -2060,6 +2093,38 @@ class HostTest < ActiveSupport::TestCase
     primary = FactoryGirl.build(:nic_managed, :primary => true, :name => 'foo')
     host = FactoryGirl.create(:host, :managed, :interfaces => [primary, FactoryGirl.build(:nic_managed, :provision => true)])
     assert_equal 'foo', host.shortname
+  end
+
+  test 'lookup_value_match returns host name instead of fqdn when there is no primary interface' do
+    host = FactoryGirl.build(:host, :managed)
+    host_name = host.name
+    host.interfaces.delete_all
+    assert_nil host.primary_interface
+    assert_equal host.send(:lookup_value_match), "fqdn=#{host_name}"
+  end
+
+  describe 'interface identifiers validation' do
+    let(:host) { FactoryGirl.build(:host, :managed) }
+    let(:additional_interface) { host.interfaces.build }
+
+    context 'additional interface has different identifier' do
+      test 'host is valid' do
+        assert host.valid?
+      end
+    end
+
+    context 'additional interface has same identifier' do
+      before { additional_interface.identifier = host.primary_interface.identifier }
+
+      test 'host is valid' do
+        refute host.valid?
+      end
+
+      test 'validation ignores interfaces marked for destruction' do
+        additional_interface.mark_for_destruction
+        assert host.valid?
+      end
+    end
   end
 
   private

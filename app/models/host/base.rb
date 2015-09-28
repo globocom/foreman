@@ -171,22 +171,7 @@ module Host
       end
 
       parser.interfaces.each do |name, attributes|
-        begin
-          macaddress = Net::Validations.normalize_mac(attributes[:macaddress])
-        rescue ArgumentError
-          logger.debug "invalid mac during parsing: #{attributes[:macaddress]}"
-        end
-        base = self.interfaces.where(:mac => macaddress)
-
-        if attributes[:virtual]
-          # for virtual devices we don't check only mac address since it's not unique,
-          # if we want to update the device it must have same identifier
-          base = base.virtual.where(:identifier => name)
-        else
-          base = base.physical
-        end
-
-        iface = base.first || interface_class(name).new(:managed => false)
+        iface = get_interface_scope(name, attributes).first || interface_class(name).new(:managed => false)
         # create or update existing interface
         set_interface(attributes, name, iface)
       end
@@ -331,6 +316,30 @@ module Host
       self.primary_interface.provision = true if self.provision_interface.nil?
     end
 
+    def get_interface_scope(name, attributes, base = self.interfaces)
+      case interface_class(name).to_s
+        # we search bonds based on identifiers, e.g. ubuntu sets random MAC after each reboot se we can't
+        # rely on mac
+        when 'Nic::Bond'
+          base.virtual.where(:identifier => name)
+        # for other interfaces we distinguish between virtual and physical interfaces
+        # for virtual devices we don't check only mac address since it's not unique,
+        # if we want to update the device it must have same identifier
+        else
+          begin
+            macaddress = Net::Validations.normalize_mac(attributes[:macaddress])
+          rescue ArgumentError
+            logger.debug "invalid mac during parsing: #{attributes[:macaddress]}"
+          end
+          base = base.where(:mac => macaddress)
+          if attributes[:virtual]
+            base.virtual.where(:identifier => name)
+          else
+            base.physical
+          end
+      end
+    end
+
     def set_interface(attributes, name, iface)
       attributes = attributes.clone
       iface.mac = attributes.delete(:macaddress)
@@ -341,7 +350,7 @@ module Host
       iface.link = attributes.delete(:link) if attributes.has_key?(:link)
       iface.identifier = name
       iface.host = self
-      update_virtuals(iface.identifier_was, name) if iface.identifier_changed? && !iface.virtual? && iface.persisted?
+      update_virtuals(iface.identifier_was, name) if iface.identifier_changed? && !iface.virtual? && iface.persisted? && iface.identifier_was.present?
       iface.attrs = attributes
 
       logger.debug "Saving #{name} NIC for host #{self.name}"
@@ -419,7 +428,8 @@ module Host
     def uniq_interfaces_identifiers
       success = true
       identifiers = []
-      self.interfaces.each do |interface|
+      relevant_interfaces = self.interfaces.select { |i| !i.marked_for_destruction? }
+      relevant_interfaces.each do |interface|
         next if interface.identifier.blank?
         if identifiers.include?(interface.identifier)
           interface.errors.add :identifier, :taken
