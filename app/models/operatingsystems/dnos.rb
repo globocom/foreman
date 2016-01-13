@@ -34,7 +34,7 @@ class DNOS < Operatingsystem
 
   # where to create the boot file on the TFTP server
   def boot_filename(host = nil)
-    "boot/FTOS-#{release}.bin"
+    "boot/FTOS{('-' + #{host.host.architecture}) unless host.host.architecure.blank?}-#{release}.bin"
   end
 
   def kernel(arch)
@@ -58,7 +58,7 @@ class DNOS < Operatingsystem
   # generate a DNOS release number using release_name as a prefix,
   # in the format "$release_name-$version"
   def release
-    "#{(release_name) unless release_name.blank?}-#{major}#{('.' + minor.to_s) unless minor.blank?}"
+    "#{major}#{('.' + minor.to_s) unless minor.blank?}#{("." + release_name) unless release_name.blank?}"
   end
 
   def display_family
