@@ -36,6 +36,8 @@ module OperatingsystemsHelper
       "CoreOS"
     when /NXOS/i
       "NXOS"
+    when /DNOS/i
+      "DNOS"
     else
       return "" if record.family.blank?
       record.family
