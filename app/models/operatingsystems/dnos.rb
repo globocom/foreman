@@ -34,7 +34,7 @@ class DNOS < Operatingsystem
 
   # where to create the boot file on the TFTP server
   def boot_filename(host = nil)
-    "boot/FTOS{('-' + #{host.host.architecture}) unless host.host.architecure.blank?}-#{release}.bin"
+    "boot/FTOS#{('-' + host.host.architecture) unless host.host.architecure.blank?}-#{release}.bin"
   end
 
   def kernel(arch)
